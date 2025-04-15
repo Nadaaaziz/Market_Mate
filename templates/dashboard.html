@@ -1,0 +1,54 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>📊 Dashboard Overview</h2>
+
+<div class="stats-grid">
+  <div class="card">👤 Admins<br><span>{{ total_admins }}</span></div>
+  <div class="card">📱 Devices<br><span>{{ total_devices }}</span></div>
+  <div class="card">🖼 Images<br><span>{{ total_images }}</span></div>
+  <div class="card">💬 Feedbacks<br><span>{{ total_feedbacks }}</span></div>
+  <div class="card">📊 Avg Score<br><span>{{ avg_quality_score }}</span></div>
+</div>
+
+<div style="width: 80%; margin: 20px auto;">
+  <canvas id="analysisChart"></canvas>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('analysisChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Excellent', 'Low Quality', 'Unrecognized'],
+            datasets: [{
+                label: 'Image Analysis',
+                data: [
+                    {{ excellent_count }},
+                    {{ low_count }},
+                    {{ error_count }}
+],
+                backgroundColor: [
+                    '#4A8D5C',
+                    '#FFC107',
+                    '#F7AC3C'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Image Quality Analysis'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

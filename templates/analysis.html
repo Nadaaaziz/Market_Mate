@@ -1,0 +1,28 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>📊 Analysis Results</h2>
+<table>
+    <tr>
+        <th>Image ID</th>
+        <th>Quality Score</th>
+        <th>Message</th>
+        <th>Status</th>
+    </tr>
+    {% for result in results %}
+    <tr>
+        <td>{{ result.image_ID }}</td>
+        <td>{{ result.quality_score or 'N/A' }}</td>
+        <td>{{ result.feedback_Message }}</td>
+        <td>
+        {% if result.error_flag %}
+            <span style="color: red;">❌ Error</span>
+        {% elif result.quality_score and result.quality_score < 0.5 %}
+            <span style="color: orange;">⚠️ Low Quality</span>
+        {% else %}
+            <span style="color: green;">✅ Excellent</span>
+        {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>🖼 Images</h2>
+<table>
+  <tr>
+    <th>Image ID</th>
+    <th>Device ID</th>
+    <th>Timestamp</th>
+    <th>Image Path</th>
+  </tr>
+  {% for image in images %}
+  <tr>
+    <td>{{ image.image_ID }}</td>
+    <td>{{ image.device_ID }}</td>
+    <td>{{ image.timestamp }}</td>
+    <td>{{ image.image_FilePath }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,11 @@
+[{
+  "_id": {
+    "$oid": "67fb8f02e928205683f8e134"
+  },
+  "image_ID": "IMG001",
+  "device_ID": "DEV001",
+  "timestamp": {
+    "$date": "2025-04-13T10:16:34.404Z"
+  },
+  "image_FilePath": "images/apple.jpg"
+}]

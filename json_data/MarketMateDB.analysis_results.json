@@ -1,0 +1,10 @@
+[{
+  "_id": {
+    "$oid": "67fb8f0be928205683f8e135"
+  },
+  "result_ID": "RES001",
+  "image_ID": "IMG001",
+  "quality_score": 0.9,
+  "feedback_Message": "Excellent quality confirmed",
+  "error_flag": false
+}]

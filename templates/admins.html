@@ -1,0 +1,25 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>👤 Admins</h2>
+<form method="POST" action="/add_admin">
+    <input type="text" name="email" placeholder="Email" required>
+    <input type="text" name="password" placeholder="Password" required>
+    <button type="submit">Add Admin</button>
+</form>
+<table border="1">
+    <tr>
+        <th>ID</th><th>Email</th><th>Password</th><th>Actions</th>
+    </tr>
+    {% for admin in admins %}
+    <tr>
+        <td>{{ admin.admin_ID }}</td>
+        <td>{{ admin.email }}</td>
+        <td>{{ admin.password }}</td>
+        <td>
+            <a href="/edit_admin/{{ admin.admin_ID }}">✏️ Edit</a> |
+            <a href="/delete_admin/{{ admin.admin_ID }}">🗑️ Delete</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
