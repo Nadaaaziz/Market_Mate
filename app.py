@@ -19,32 +19,9 @@ def is_logged_in():
 # --- Dashboard ---
 @app.route("/")
 def dashboard():
-    if "admin_id" not in session:
+    if not is_logged_in():
         return redirect(url_for("login"))
-
-    total_admins = db.admins.count_documents({})
-    total_devices = db.devices.count_documents({})
-    total_images = db.images.count_documents({})
-    total_feedbacks = db.feedbacks.count_documents({})
-
-    analysis = list(db.analysis_results.find())
-    scores = [res.get("quality_score", 0) for res in analysis if res.get("quality_score") is not None]
-    avg_score = round(sum(scores)/len(scores), 2) if scores else 0
-
-    excellent = sum(1 for res in analysis if res.get("quality_score", 0) > 0.5)
-    low = sum(1 for res in analysis if res.get("quality_score", 0) <= 0.5 and not res.get("error_flag", False))
-    error = sum(1 for res in analysis if res.get("error_flag", False))
-
-    return render_template("dashboard.html",
-        total_admins=total_admins,
-        total_devices=total_devices,
-        total_images=total_images,
-        total_feedbacks=total_feedbacks,
-        avg_quality_score=avg_score,
-        excellent_count=excellent,
-        low_count=low,
-        error_count=error
-    )
+    return render_template("dashboard.html")
 
 # --- Admins ---
 @app.route("/admins")
@@ -146,3 +123,36 @@ def login():
 def logout():
     session.pop("admin_id", None)
     return redirect(url_for("login"))
+
+# --- Run ---
+if __name__ == "__main__":
+    app.run(debug=True)
+
+@app.route("/")
+def dashboard():
+    if "admin_id" not in session:
+        return redirect(url_for("login"))
+
+    total_admins = db.admins.count_documents({})
+    total_devices = db.devices.count_documents({})
+    total_images = db.images.count_documents({})
+    total_feedbacks = db.feedbacks.count_documents({})
+
+    analysis = list(db.analysis_results.find())
+    scores = [res.get("quality_score", 0) for res in analysis if res.get("quality_score") is not None]
+    avg_score = round(sum(scores)/len(scores), 2) if scores else 0
+
+    excellent = sum(1 for res in analysis if res.get("quality_score", 0) > 0.5)
+    low = sum(1 for res in analysis if res.get("quality_score", 0) <= 0.5 and not res.get("error_flag", False))
+    error = sum(1 for res in analysis if res.get("error_flag", False))
+
+    return render_template("dashboard.html",
+        total_admins=total_admins,
+        total_devices=total_devices,
+        total_images=total_images,
+        total_feedbacks=total_feedbacks,
+        avg_quality_score=avg_score,
+        excellent_count=excellent,
+        low_count=low,
+        error_count=error
+    )
