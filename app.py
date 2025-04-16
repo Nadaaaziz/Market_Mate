@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 app.secret_key = "secret123"
 
-# MongoDB Cloud رابط بدل localhost لو حابة ترفعيه أونلاين بعدين
+# MongoDB Local - لو هتشغلي أونلاين ممكن تحتاجي Mongo Atlas
 client = MongoClient("mongodb://localhost:27017/")
 db = client["MarketMateDB"]
 admins_collection = db["admins"]
@@ -17,6 +17,7 @@ def generate_id(prefix):
 def is_logged_in():
     return "admin_id" in session
 
+# --- Dashboard ---
 @app.route("/")
 def dashboard():
     if "admin_id" not in session:
@@ -46,6 +47,7 @@ def dashboard():
         error_count=error
     )
 
+# --- Admins ---
 @app.route("/admins")
 def admins():
     if not is_logged_in():
@@ -88,6 +90,7 @@ def edit_admin(admin_id):
         return redirect(url_for("admins"))
     return render_template("edit_admin.html", admin=admin)
 
+# --- Devices ---
 @app.route("/devices")
 def devices():
     if not is_logged_in():
@@ -95,6 +98,7 @@ def devices():
     devices = list(db.devices.find())
     return render_template("devices.html", devices=devices)
 
+# --- Images ---
 @app.route("/images")
 def images():
     if not is_logged_in():
@@ -102,6 +106,7 @@ def images():
     images = list(db.images.find())
     return render_template("images.html", images=images)
 
+# --- Analysis ---
 @app.route("/analysis")
 def analysis():
     if not is_logged_in():
@@ -109,6 +114,7 @@ def analysis():
     results = list(db.analysis_results.find())
     return render_template("analysis.html", results=results)
 
+# --- Feedbacks ---
 @app.route("/feedbacks")
 def feedbacks():
     if not is_logged_in():
@@ -116,6 +122,7 @@ def feedbacks():
     feedbacks = list(db.feedbacks.find())
     return render_template("feedbacks.html", feedbacks=feedbacks)
 
+# --- Login ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -135,12 +142,13 @@ def login():
 
     return render_template("login.html")
 
+# --- Logout ---
 @app.route("/logout")
 def logout():
     session.pop("admin_id", None)
     return redirect(url_for("login"))
 
-# ✅ تشغيل السيرفر ببورت Railway
+# --- تشغيل السيرفر ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5000))  # ضروري لـ Railway
     app.run(debug=True, host="0.0.0.0", port=port)
