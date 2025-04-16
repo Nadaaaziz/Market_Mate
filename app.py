@@ -5,20 +5,19 @@ import uuid
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-# Database connection with error handling
+# Connect to MongoDB Atlas
 try:
     client = MongoClient(
         os.environ.get("MONGODB_URI", "mongodb://localhost:27017/"),
         connectTimeoutMS=30000,
-        socketTimeoutMS=None,
-        socketKeepAlive=True
+        socketTimeoutMS=None
     )
     db = client["MarketMateDB"]
     admins_collection = db["admins"]
@@ -29,54 +28,43 @@ except Exception as e:
 
 # Helper functions
 def generate_id(prefix):
-    """Generate unique ID with given prefix"""
     return prefix + str(uuid.uuid4())[:8]
 
 def is_logged_in():
-    """Check if admin is logged in"""
     return "admin_id" in session
 
 def hash_password(password):
-    """Hash password using SHA-256"""
     return generate_password_hash(password, method='pbkdf2:sha256')
 
 def verify_password(hashed_password, password):
-    """Verify hashed password"""
     return check_password_hash(hashed_password, password)
 
 # Authentication routes
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Handle admin login with secure session"""
     if request.method == "POST":
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
 
         admin = admins_collection.find_one({"email": email})
-        
         if admin and verify_password(admin["password"], password):
             session.clear()
             session["admin_id"] = str(admin["admin_ID"])
             session.permanent = True
             return redirect(url_for("show_dashboard"))
-        
         return render_template("login.html", error="Invalid credentials")
-    
     return render_template("login.html")
 
 @app.route("/logout")
 def logout():
-    """Secure logout with session cleanup"""
     session.clear()
     return redirect(url_for("login"))
 
-# Main dashboard route with error handling
+# Dashboard
 @app.route("/")
 def show_dashboard():
-    """Display dashboard with statistics"""
     if not is_logged_in():
         return redirect(url_for("login"))
-
     try:
         counts = {
             "admins": admins_collection.count_documents({}),
@@ -104,13 +92,11 @@ def show_dashboard():
         print(f"Dashboard error: {e}")
         return render_template("error.html", message="Failed to load dashboard data"), 500
 
-# Admin management routes with enhanced security
+# Admin management
 @app.route("/admins")
 def list_admins():
-    """List all admins with restricted sensitive data"""
     if not is_logged_in():
         return redirect(url_for("login"))
-    
     try:
         admins = list(admins_collection.find({}, {"password": 0}))
         return render_template("admins.html", admins=admins)
@@ -120,10 +106,8 @@ def list_admins():
 
 @app.route("/admins/add", methods=["POST"])
 def add_admin():
-    """Add new admin with password hashing"""
     if not is_logged_in():
         return redirect(url_for("login"))
-
     try:
         new_admin = {
             "admin_ID": generate_id("ADM"),
@@ -138,13 +122,10 @@ def add_admin():
 
 @app.route("/admins/<admin_id>/delete")
 def delete_admin(admin_id):
-    """Delete admin with validation"""
     if not is_logged_in():
         return redirect(url_for("login"))
-    
     if str(session.get("admin_id")) == admin_id:
         return redirect(url_for("list_admins", error="Cannot delete current admin"))
-
     try:
         admins_collection.delete_one({"admin_ID": admin_id})
         return redirect(url_for("list_admins"))
@@ -154,41 +135,28 @@ def delete_admin(admin_id):
 
 @app.route("/admins/<admin_id>/edit", methods=["GET", "POST"])
 def edit_admin(admin_id):
-    """Edit admin details with security checks"""
     if not is_logged_in():
         return redirect(url_for("login"))
-
     try:
         admin = admins_collection.find_one({"admin_ID": admin_id})
         if not admin:
             return redirect(url_for("list_admins"))
-        
         if request.method == "POST":
-            update_data = {
-                "email": request.form.get("email", "").strip()
-            }
-            
+            update_data = {"email": request.form.get("email", "").strip()}
             if request.form.get("password"):
                 update_data["password"] = hash_password(request.form.get("password"))
-            
-            admins_collection.update_one(
-                {"admin_ID": admin_id},
-                {"$set": update_data}
-            )
+            admins_collection.update_one({"admin_ID": admin_id}, {"$set": update_data})
             return redirect(url_for("list_admins"))
-        
         return render_template("edit_admin.html", admin=admin)
     except Exception as e:
         print(f"Edit admin error: {e}")
         return redirect(url_for("list_admins"))
 
-# Data management routes with pagination
+# Devices route with pagination
 @app.route("/devices")
 def list_devices():
-    """List devices with pagination"""
     if not is_logged_in():
         return redirect(url_for("login"))
-    
     try:
         page = int(request.args.get('page', 1))
         per_page = 10
@@ -198,13 +166,7 @@ def list_devices():
         print(f"Devices list error: {e}")
         return render_template("error.html", message="Failed to load devices"), 500
 
-# Similar improvements for images, analysis, and feedbacks routes...
-
-# Production-ready application entry
+# Entry point
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(
-        host="0.0.0.0",
-        port=port,
-        debug=os.environ.get("FLASK_DEBUG", "False") == "True"
-    )
+    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG", "False") == "True")
