@@ -1,14 +1,11 @@
 {% extends 'layout.html' %}
 {% block content %}
-    <h2>✏️ Edit Admin</h2>
-    
-    <form method="POST" class="form-container">
-        <label>Email:</label>
-        <input type="text" name="email" value="{{ admin.email }}" required>
-        
-        <label>Password:</label>
-        <input type="password" name="password" value="{{ admin.password }}" required>
-        
-        <button type="submit">💾 Save</button>
-    </form>
+  <h2>✏️ Edit Admin</h2>
+  <form method="POST" class="form-container">
+    <label>Email:</label>
+    <input type="text" name="email" value="{{ admin.email }}" required>
+    <label>Password:</label>
+    <input type="password" name="password" value="{{ admin.password }}" required>
+    <button type="submit">💾 Save</button>
+  </form>
 {% endblock %}

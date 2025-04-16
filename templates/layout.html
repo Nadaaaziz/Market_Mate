@@ -1,27 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MarketMate Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MarketMate Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="sidebar">
-        <h2>MarketMate</h2>
-        <ul>
-            <li><a href="/">🏠 Dashboard</a></li>
-            <li><a href="/admins">👤 Admins</a></li>
-            <li><a href="/devices">📱 Devices</a></li>
-            <li><a href="/images">🖼 Images</a></li>
-            <li><a href="/analysis">📊 Analysis</a></li>
-            <li><a href="/feedbacks">💬 Feedbacks</a></li>
-            <li><a href="/logout">🚪 Logout</a></li>
-        </ul>
-    </div>
-    <div class="main-content">
-        {% block content %}{% endblock %}
-    </div>
+  <div class="sidebar">
+    <h2>MarketMate</h2>
+    <ul>
+      <li><a href="/">🏠 Dashboard</a></li>
+      <li><a href="/admins">👤 Admins</a></li>
+      <li><a href="/devices">📱 Devices</a></li>
+      <li><a href="/images">🖼 Images</a></li>
+      <li><a href="/analysis">📊 Analysis</a></li>
+      <li><a href="/feedbacks">💬 Feedbacks</a></li>
+      <li><a href="/logout">🚪 Logout</a></li>
+    </ul>
+  </div>
+  <div class="main-content">
+    {% block content %}{% endblock %}
+  </div>
 </body>
 </html>

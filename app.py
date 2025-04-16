@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, url_for
 from pymongo import MongoClient
-from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import os
 from dotenv import load_dotenv
@@ -33,13 +32,9 @@ def generate_id(prefix):
 def is_logged_in():
     return "admin_id" in session
 
-def hash_password(password):
-    return generate_password_hash(password, method='pbkdf2:sha256')
-
-def verify_password(hashed_password, password):
-    return check_password_hash(hashed_password, password)
-
-# Authentication routes
+# -------------------------
+# 🔐 Authentication Routes
+# -------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -47,7 +42,7 @@ def login():
         password = request.form.get("password", "")
 
         admin = admins_collection.find_one({"email": email})
-        if admin and admin["password"] == password:
+        if admin and admin["password"] == password:  # No hashing for now
             session.clear()
             session["admin_id"] = str(admin["admin_ID"])
             session.permanent = True
@@ -60,7 +55,9 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-# Dashboard
+# -------------------------
+# 🧮 Dashboard
+# -------------------------
 @app.route("/")
 def show_dashboard():
     if not is_logged_in():
@@ -92,7 +89,9 @@ def show_dashboard():
         print(f"Dashboard error: {e}")
         return render_template("error.html", message="Failed to load dashboard data"), 500
 
-# Admin management
+# -------------------------
+# 👤 Admin Management
+# -------------------------
 @app.route("/admins")
 def list_admins():
     if not is_logged_in():
@@ -112,7 +111,7 @@ def add_admin():
         new_admin = {
             "admin_ID": generate_id("ADM"),
             "email": request.form.get("email", "").strip(),
-            "password": hash_password(request.form.get("password", ""))
+            "password": request.form.get("password", "")  # no hashing
         }
         admins_collection.insert_one(new_admin)
         return redirect(url_for("list_admins"))
@@ -144,15 +143,20 @@ def edit_admin(admin_id):
         if request.method == "POST":
             update_data = {"email": request.form.get("email", "").strip()}
             if request.form.get("password"):
-                update_data["password"] = hash_password(request.form.get("password"))
-            admins_collection.update_one({"admin_ID": admin_id}, {"$set": update_data})
+                update_data["password"] = request.form.get("password")
+            admins_collection.update_one(
+                {"admin_ID": admin_id},
+                {"$set": update_data}
+            )
             return redirect(url_for("list_admins"))
         return render_template("edit_admin.html", admin=admin)
     except Exception as e:
         print(f"Edit admin error: {e}")
         return redirect(url_for("list_admins"))
 
-# Devices route with pagination
+# -------------------------
+# 📱 Devices
+# -------------------------
 @app.route("/devices")
 def list_devices():
     if not is_logged_in():
@@ -166,7 +170,51 @@ def list_devices():
         print(f"Devices list error: {e}")
         return render_template("error.html", message="Failed to load devices"), 500
 
-# Entry point
+# -------------------------
+# 🖼 Images
+# -------------------------
+@app.route("/images")
+def list_images():
+    if not is_logged_in():
+        return redirect(url_for("login"))
+    try:
+        images = list(db.images.find())
+        return render_template("images.html", images=images)
+    except Exception as e:
+        print(f"Images error: {e}")
+        return render_template("error.html", message="Failed to load images"), 500
+
+# -------------------------
+# 📊 Analysis
+# -------------------------
+@app.route("/analysis")
+def show_analysis():
+    if not is_logged_in():
+        return redirect(url_for("login"))
+    try:
+        results = list(db.analysis_results.find())
+        return render_template("analysis.html", results=results)
+    except Exception as e:
+        print(f"Analysis error: {e}")
+        return render_template("error.html", message="Failed to load analysis"), 500
+
+# -------------------------
+# 💬 Feedbacks
+# -------------------------
+@app.route("/feedbacks")
+def list_feedbacks():
+    if not is_logged_in():
+        return redirect(url_for("login"))
+    try:
+        feedbacks = list(db.feedbacks.find())
+        return render_template("feedbacks.html", feedbacks=feedbacks)
+    except Exception as e:
+        print(f"Feedbacks error: {e}")
+        return render_template("error.html", message="Failed to load feedbacks"), 500
+
+# -------------------------
+# 🎯 Run App
+# -------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
