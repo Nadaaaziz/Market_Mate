@@ -1,10 +1,12 @@
 from flask import Flask, render_template, request, redirect, session, url_for
 from pymongo import MongoClient
 import uuid
+import os
 
 app = Flask(__name__)
 app.secret_key = "secret123"
 
+# MongoDB Cloud رابط بدل localhost لو حابة ترفعيه أونلاين بعدين
 client = MongoClient("mongodb://localhost:27017/")
 db = client["MarketMateDB"]
 admins_collection = db["admins"]
@@ -12,18 +14,38 @@ admins_collection = db["admins"]
 def generate_id(prefix):
     return prefix + str(uuid.uuid4())[:6]
 
-# --- حماية: دالة تفحص إذا المستخدم مسجل دخول كـ admin ---
 def is_logged_in():
     return "admin_id" in session
 
-# --- Dashboard ---
 @app.route("/")
 def dashboard():
-    if not is_logged_in():
+    if "admin_id" not in session:
         return redirect(url_for("login"))
-    return render_template("dashboard.html")
 
-# --- Admins ---
+    total_admins = db.admins.count_documents({})
+    total_devices = db.devices.count_documents({})
+    total_images = db.images.count_documents({})
+    total_feedbacks = db.feedbacks.count_documents({})
+
+    analysis = list(db.analysis_results.find())
+    scores = [res.get("quality_score", 0) for res in analysis if res.get("quality_score") is not None]
+    avg_score = round(sum(scores)/len(scores), 2) if scores else 0
+
+    excellent = sum(1 for res in analysis if res.get("quality_score", 0) > 0.5)
+    low = sum(1 for res in analysis if res.get("quality_score", 0) <= 0.5 and not res.get("error_flag", False))
+    error = sum(1 for res in analysis if res.get("error_flag", False))
+
+    return render_template("dashboard.html",
+        total_admins=total_admins,
+        total_devices=total_devices,
+        total_images=total_images,
+        total_feedbacks=total_feedbacks,
+        avg_quality_score=avg_score,
+        excellent_count=excellent,
+        low_count=low,
+        error_count=error
+    )
+
 @app.route("/admins")
 def admins():
     if not is_logged_in():
@@ -66,7 +88,6 @@ def edit_admin(admin_id):
         return redirect(url_for("admins"))
     return render_template("edit_admin.html", admin=admin)
 
-# --- Devices ---
 @app.route("/devices")
 def devices():
     if not is_logged_in():
@@ -74,7 +95,6 @@ def devices():
     devices = list(db.devices.find())
     return render_template("devices.html", devices=devices)
 
-# --- Images ---
 @app.route("/images")
 def images():
     if not is_logged_in():
@@ -82,7 +102,6 @@ def images():
     images = list(db.images.find())
     return render_template("images.html", images=images)
 
-# --- Analysis ---
 @app.route("/analysis")
 def analysis():
     if not is_logged_in():
@@ -90,7 +109,6 @@ def analysis():
     results = list(db.analysis_results.find())
     return render_template("analysis.html", results=results)
 
-# --- Feedbacks ---
 @app.route("/feedbacks")
 def feedbacks():
     if not is_logged_in():
@@ -98,7 +116,6 @@ def feedbacks():
     feedbacks = list(db.feedbacks.find())
     return render_template("feedbacks.html", feedbacks=feedbacks)
 
-# --- Login ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -118,41 +135,12 @@ def login():
 
     return render_template("login.html")
 
-# --- Logout ---
 @app.route("/logout")
 def logout():
     session.pop("admin_id", None)
     return redirect(url_for("login"))
 
-# --- Run ---
+# ✅ تشغيل السيرفر ببورت Railway
 if __name__ == "__main__":
-    app.run(debug=True)
-
-@app.route("/")
-def dashboard():
-    if "admin_id" not in session:
-        return redirect(url_for("login"))
-
-    total_admins = db.admins.count_documents({})
-    total_devices = db.devices.count_documents({})
-    total_images = db.images.count_documents({})
-    total_feedbacks = db.feedbacks.count_documents({})
-
-    analysis = list(db.analysis_results.find())
-    scores = [res.get("quality_score", 0) for res in analysis if res.get("quality_score") is not None]
-    avg_score = round(sum(scores)/len(scores), 2) if scores else 0
-
-    excellent = sum(1 for res in analysis if res.get("quality_score", 0) > 0.5)
-    low = sum(1 for res in analysis if res.get("quality_score", 0) <= 0.5 and not res.get("error_flag", False))
-    error = sum(1 for res in analysis if res.get("error_flag", False))
-
-    return render_template("dashboard.html",
-        total_admins=total_admins,
-        total_devices=total_devices,
-        total_images=total_images,
-        total_feedbacks=total_feedbacks,
-        avg_quality_score=avg_score,
-        excellent_count=excellent,
-        low_count=low,
-        error_count=error
-    )
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)
