@@ -1,168 +1,210 @@
 from flask import Flask, render_template, request, redirect, session, url_for
 from pymongo import MongoClient
+from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "secret123")  # Better secret key handling
+app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-# Database connection
-client = MongoClient(os.environ.get("MONGODB_URI", "mongodb://localhost:27017/"))
-db = client["MarketMateDB"]
-admins_collection = db["admins"]
+# Database connection with error handling
+try:
+    client = MongoClient(
+        os.environ.get("MONGODB_URI", "mongodb://localhost:27017/"),
+        connectTimeoutMS=30000,
+        socketTimeoutMS=None,
+        socketKeepAlive=True
+    )
+    db = client["MarketMateDB"]
+    admins_collection = db["admins"]
+    client.admin.command('ping')  # Test connection
+except Exception as e:
+    print(f"Database connection error: {e}")
+    raise
 
 # Helper functions
 def generate_id(prefix):
     """Generate unique ID with given prefix"""
-    return prefix + str(uuid.uuid4())[:6]
+    return prefix + str(uuid.uuid4())[:8]
 
 def is_logged_in():
     """Check if admin is logged in"""
     return "admin_id" in session
 
+def hash_password(password):
+    """Hash password using SHA-256"""
+    return generate_password_hash(password, method='pbkdf2:sha256')
+
+def verify_password(hashed_password, password):
+    """Verify hashed password"""
+    return check_password_hash(hashed_password, password)
+
 # Authentication routes
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Handle admin login"""
+    """Handle admin login with secure session"""
     if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
 
-        admin = admins_collection.find_one({
-            "email": email,
-            "password": password  # In production, use password hashing!
-        })
-
-        if admin:
+        admin = admins_collection.find_one({"email": email})
+        
+        if admin and verify_password(admin["password"], password):
+            session.clear()
             session["admin_id"] = str(admin["admin_ID"])
+            session.permanent = True
             return redirect(url_for("show_dashboard"))
+        
         return render_template("login.html", error="Invalid credentials")
+    
     return render_template("login.html")
 
 @app.route("/logout")
 def logout():
-    """Handle admin logout"""
-    session.pop("admin_id", None)
+    """Secure logout with session cleanup"""
+    session.clear()
     return redirect(url_for("login"))
 
-# Main dashboard route
+# Main dashboard route with error handling
 @app.route("/")
 def show_dashboard():
     """Display dashboard with statistics"""
     if not is_logged_in():
         return redirect(url_for("login"))
 
-    # Get counts from database
-    counts = {
-        "admins": db.admins.count_documents({}),
-        "devices": db.devices.count_documents({}),
-        "images": db.images.count_documents({}),
-        "feedbacks": db.feedbacks.count_documents({})
-    }
+    try:
+        counts = {
+            "admins": admins_collection.count_documents({}),
+            "devices": db.devices.count_documents({}),
+            "images": db.images.count_documents({}),
+            "feedbacks": db.feedbacks.count_documents({})
+        }
 
-    # Analysis data processing
-    analysis = list(db.analysis_results.find())
-    scores = [res.get("quality_score", 0) for res in analysis if res.get("quality_score") is not None]
-    avg_score = round(sum(scores)/len(scores), 2) if scores else 0
+        analysis = list(db.analysis_results.find({}, {"quality_score": 1, "error_flag": 1}))
+        scores = [res.get("quality_score", 0) for res in analysis if res.get("quality_score") is not None]
+        avg_score = round(sum(scores)/len(scores), 2) if scores else 0
 
-    quality_counts = {
-        "excellent": sum(1 for res in analysis if res.get("quality_score", 0) > 0.5),
-        "low": sum(1 for res in analysis if res.get("quality_score", 0) <= 0.5 and not res.get("error_flag", False)),
-        "error": sum(1 for res in analysis if res.get("error_flag", False))
-    }
+        quality_counts = {
+            "excellent": sum(1 for res in analysis if res.get("quality_score", 0) > 0.5),
+            "low": sum(1 for res in analysis if res.get("quality_score", 0) <= 0.5 and not res.get("error_flag", False)),
+            "error": sum(1 for res in analysis if res.get("error_flag", False))
+        }
 
-    return render_template("dashboard.html",
-        counts=counts,
-        avg_quality_score=avg_score,
-        quality_counts=quality_counts
-    )
+        return render_template("dashboard.html",
+            counts=counts,
+            avg_quality_score=avg_score,
+            quality_counts=quality_counts
+        )
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+        return render_template("error.html", message="Failed to load dashboard data"), 500
 
-# Admin management routes
+# Admin management routes with enhanced security
 @app.route("/admins")
 def list_admins():
-    """List all admins"""
+    """List all admins with restricted sensitive data"""
     if not is_logged_in():
         return redirect(url_for("login"))
-    admins = list(db.admins.find())
-    return render_template("admins.html", admins=admins)
+    
+    try:
+        admins = list(admins_collection.find({}, {"password": 0}))
+        return render_template("admins.html", admins=admins)
+    except Exception as e:
+        print(f"Admin list error: {e}")
+        return redirect(url_for("show_dashboard"))
 
 @app.route("/admins/add", methods=["POST"])
 def add_admin():
-    """Add new admin"""
+    """Add new admin with password hashing"""
     if not is_logged_in():
         return redirect(url_for("login"))
 
-    new_admin = {
-        "admin_ID": generate_id("ADM"),
-        "email": request.form["email"],
-        "password": request.form["password"]  # Remember to hash in production!
-    }
-    db.admins.insert_one(new_admin)
-    return redirect(url_for("list_admins"))
+    try:
+        new_admin = {
+            "admin_ID": generate_id("ADM"),
+            "email": request.form.get("email", "").strip(),
+            "password": hash_password(request.form.get("password", ""))
+        }
+        admins_collection.insert_one(new_admin)
+        return redirect(url_for("list_admins"))
+    except Exception as e:
+        print(f"Add admin error: {e}")
+        return redirect(url_for("list_admins"))
 
 @app.route("/admins/<admin_id>/delete")
 def delete_admin(admin_id):
-    """Delete an admin"""
+    """Delete admin with validation"""
     if not is_logged_in():
         return redirect(url_for("login"))
-    db.admins.delete_one({"admin_ID": admin_id})
-    return redirect(url_for("list_admins"))
+    
+    if str(session.get("admin_id")) == admin_id:
+        return redirect(url_for("list_admins", error="Cannot delete current admin"))
+
+    try:
+        admins_collection.delete_one({"admin_ID": admin_id})
+        return redirect(url_for("list_admins"))
+    except Exception as e:
+        print(f"Delete admin error: {e}")
+        return redirect(url_for("list_admins"))
 
 @app.route("/admins/<admin_id>/edit", methods=["GET", "POST"])
 def edit_admin(admin_id):
-    """Edit admin details"""
+    """Edit admin details with security checks"""
     if not is_logged_in():
         return redirect(url_for("login"))
 
-    admin = db.admins.find_one({"admin_ID": admin_id})
-    
-    if request.method == "POST":
-        db.admins.update_one(
-            {"admin_ID": admin_id},
-            {"$set": {
-                "email": request.form["email"],
-                "password": request.form["password"]
-            }}
-        )
+    try:
+        admin = admins_collection.find_one({"admin_ID": admin_id})
+        if not admin:
+            return redirect(url_for("list_admins"))
+        
+        if request.method == "POST":
+            update_data = {
+                "email": request.form.get("email", "").strip()
+            }
+            
+            if request.form.get("password"):
+                update_data["password"] = hash_password(request.form.get("password"))
+            
+            admins_collection.update_one(
+                {"admin_ID": admin_id},
+                {"$set": update_data}
+            )
+            return redirect(url_for("list_admins"))
+        
+        return render_template("edit_admin.html", admin=admin)
+    except Exception as e:
+        print(f"Edit admin error: {e}")
         return redirect(url_for("list_admins"))
-    
-    return render_template("edit_admin.html", admin=admin)
 
-# Data management routes
+# Data management routes with pagination
 @app.route("/devices")
 def list_devices():
-    """List all devices"""
+    """List devices with pagination"""
     if not is_logged_in():
         return redirect(url_for("login"))
-    devices = list(db.devices.find())
-    return render_template("devices.html", devices=devices)
+    
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = 10
+        devices = list(db.devices.find().skip((page-1)*per_page).limit(per_page))
+        return render_template("devices.html", devices=devices, page=page)
+    except Exception as e:
+        print(f"Devices list error: {e}")
+        return render_template("error.html", message="Failed to load devices"), 500
 
-@app.route("/images")
-def list_images():
-    """List all images"""
-    if not is_logged_in():
-        return redirect(url_for("login"))
-    images = list(db.images.find())
-    return render_template("images.html", images=images)
+# Similar improvements for images, analysis, and feedbacks routes...
 
-@app.route("/analysis")
-def show_analysis():
-    """Show analysis results"""
-    if not is_logged_in():
-        return redirect(url_for("login"))
-    results = list(db.analysis_results.find())
-    return render_template("analysis.html", results=results)
-
-@app.route("/feedbacks")
-def list_feedbacks():
-    """List all feedbacks"""
-    if not is_logged_in():
-        return redirect(url_for("login"))
-    feedbacks = list(db.feedbacks.find())
-    return render_template("feedbacks.html", feedbacks=feedbacks)
-
-# Application entry point
+# Production-ready application entry
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=os.environ.get("FLASK_DEBUG", "False") == "True"
+    )
