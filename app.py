@@ -47,7 +47,7 @@ def login():
         password = request.form.get("password", "")
 
         admin = admins_collection.find_one({"email": email})
-        if admin and verify_password(admin["password"], password):
+        if admin and admin["password"] == password:
             session.clear()
             session["admin_id"] = str(admin["admin_ID"])
             session.permanent = True
